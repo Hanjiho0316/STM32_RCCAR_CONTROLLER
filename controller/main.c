@@ -23,7 +23,7 @@ void Main(void)
     printf("   Bluetooth Chatting Ready   \n");
     printf("      Baudrate: 38400         \n");
     printf("==============================\n");
-    
+
     char data;
     for(;;)
     {

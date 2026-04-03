@@ -42,16 +42,10 @@ void Uart2_Init(int baud)
 
 void Uart2_Send_Byte(char data)
 {
-  if(data == '\n')
-  {
-    while(!Macro_Check_Bit_Set(USART2->SR, 7));
-    USART2->DR = 0x0d;
-  }
-
+  // 테라텀 출력도 마찬가지로 깔끔하게 데이터만 보냅니다.
   while(!Macro_Check_Bit_Set(USART2->SR, 7));
   USART2->DR = data;
 }
-
 void Uart2_RX_Interrupt_Enable(int en)
 {
   if(en)
@@ -105,12 +99,7 @@ void Uart1_Init(int baud)
 
 void Uart1_Send_Byte(char data)
 {
-  if(data == '\n')
-  {
-    while(!Macro_Check_Bit_Set(USART1->SR, 7));
-    USART1->DR = 0x0d;
-  }
-
+  // \n 체크 로직을 완전히 제거하고 순수하게 데이터만 보냅니다.
   while(!Macro_Check_Bit_Set(USART1->SR, 7));
   USART1->DR = data;
 }
