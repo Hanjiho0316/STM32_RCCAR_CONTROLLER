@@ -52,6 +52,7 @@ void Main(void)
             
             // 블루투스(Uart1)로 전송
             Uart1_Send_String(msg);
+            printf(msg);
             
             // LCD 출력 업데이트 (첫 번째 줄은 고정, 두 번째 줄에 상태 표시)
             LCD_Send_Cmd(0xC0); // 2번째 줄 이동
@@ -59,7 +60,7 @@ void Main(void)
             LCD_Print_String(msg);
         }
 
-        // 2. 차량으로부터 오는 피드백 데이터 수신 (필요 시)
+        // 2. 차량으로부터 오는 피드백 데이터 수신
         if(Macro_Check_Bit_Set(USART1->SR, 5)) 
         {
             char rx_data = (char)USART1->DR;
