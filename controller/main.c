@@ -67,6 +67,9 @@ void Main(void)
             // 수신 데이터를 디버그용 터미널(Uart2)로 전달
             Uart2_Send_Byte(rx_data); 
         }
+
+        // 전송 및 화면 갱신 주기 (너무 빠르면 눈이 아프니 적절히 조절)
+        for(volatile int i=0; i<800000; i++); 
     }
 }
 
