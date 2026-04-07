@@ -85,7 +85,7 @@ int Get_Joystick_Direction(int x, int y)
     int raw_dx = 0; 
     int raw_dy = 0; 
 
-    // X축 원시 데이터 분석
+    // X축 원시 데이    터 분석
     if (x > 3000) raw_dx = 1;
     else if (x < 1000) raw_dx = -1;
 
