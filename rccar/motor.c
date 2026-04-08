@@ -1,6 +1,19 @@
+/**
+ * @file motor.c
+ * @brief DC 모터 방향 및 속도 제어 드라이버
+ * @details RC카의 바퀴를 구동하는 모터 드라이버 모듈(예: L298N)에 전달할 
+ * 방향 제어용 디지털 출력 핀과 속도 제어용 PWM 신호를 설정하고 제어합니다.
+ */
+
 #include "device_driver.h"
 #include <stdio.h>
 
+/**
+ * @brief 모터 구동용 하드웨어 초기화
+ * @details 모터의 정/역방향 제어를 위한 GPIOA 핀(PA0, PA1, PA4, PA5)을 일반 출력으로 설정하고,
+ * 속도 제어를 위한 GPIOB 핀(PB4, PB5)을 타이머3(TIM3)의 대체 기능(PWM)으로 설정합니다.
+ * 스위칭 노이즈를 줄이기 위해 100Hz 주파수의 PWM을 생성하며, 초기 듀티비는 0%로 설정합니다.
+ */
 void Motor_Init(void)
 {
     // 1. 방향 제어용 GPIO 초기화 (PA0, PA1, PA4, PA5)
@@ -37,6 +50,12 @@ void Motor_Init(void)
     TIM3->CR1 = (1 << 0); // 타이머 카운터 시작
 }
 
+/**
+ * @brief 양쪽 모터의 속도(PWM 듀티비) 개별 설정
+ * @details 입력받은 듀티비 값을 타이머의 비교 레지스터에 적용하여 실제 모터의 회전 속도를 변경합니다.
+ * @param left_duty 좌측 모터의 듀티비 (0 ~ 100)
+ * @param right_duty 우측 모터의 듀티비 (0 ~ 100)
+ */
 void Motor_Set_PWM(int left_duty, int right_duty)
 {
     // 입력된 듀티비를 0~100 사이로 제한하여 오작동 방지
@@ -50,6 +69,12 @@ void Motor_Set_PWM(int left_duty, int right_duty)
     TIM3->CCR2 = right_duty; // 우측 모터 속도 (PB5, ENB)
 }
 
+/**
+ * @brief 수신된 조이스틱 방향 데이터에 따른 차량 통합 제어
+ * @details 1부터 9까지의 문자 데이터를 해석하여 전진, 후진, 제자리 회전 및 
+ * 양쪽 모터의 속도 차이를 이용한 부드러운 곡선(대각선) 주행을 수행합니다.
+ * @param joy 방향을 나타내는 1바이트 문자 (1~9 방향, 5는 정지)
+ */
 void Control_Motor_By_Joystick(char joy)
 {
     switch(joy)

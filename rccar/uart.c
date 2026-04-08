@@ -1,3 +1,10 @@
+/**
+ * @file uart.c
+ * @brief UART 직렬 통신 제어 드라이버
+ * @details STM32F411 MCU의 USART1 및 USART2 채널에 대한 
+ * 초기화, 송수신, 인터럽트 제어 기능을 제공합니다.
+ */
+
 #include "device_driver.h"
 #include <stdio.h>
 #include <stdarg.h>
@@ -5,11 +12,16 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-
 // exception.c에서 참조하는 전역 변수들 실제 정의
 volatile int Uart_Data_In = 0;        // 데이터 수신 여부 플래그
 volatile unsigned char Uart_Data = 0; // 수신된 데이터 1바이트 저장 변수
 
+/**
+ * @brief USART2 하드웨어 초기화 (디버깅용)
+ * @details PA2(TX) 및 PA3(RX) 핀을 대체 기능(AF07)으로 설정하고,
+ * 지정된 보드레이트에 맞추어 분주비를 계산하여 USART2 장치를 활성화합니다.
+ * @param baud 통신 속도 (Baudrate)
+ */
 void Uart2_Init(int baud)
 {
   double div;
@@ -40,6 +52,12 @@ void Uart2_Init(int baud)
   USART2->CR3 = 0;
 }
 
+/**
+ * @brief USART2를 통한 1바이트 데이터 송신
+ * @details 송신 데이터 레지스터가 빌 때까지 대기한 후, 1바이트 문자를 전송합니다.
+ * 개행 문자 전송 시 캐리지 리턴을 자동으로 추가합니다.
+ * @param data 전송할 8비트 문자 데이터
+ */
 void Uart2_Send_Byte(char data)
 {
   if(data == '\n')
@@ -52,6 +70,12 @@ void Uart2_Send_Byte(char data)
   USART2->DR = data;
 }
 
+/**
+ * @brief USART2 수신 인터럽트 활성화 및 비활성화 제어
+ * @details USART2의 RXNE(수신 버퍼 풀음) 인터럽트를 제어하고,
+ * NVIC 상에서 해당 IRQ(38번)를 설정합니다.
+ * @param en 1을 입력하면 인터럽트 활성화, 0을 입력하면 비활성화
+ */
 void Uart2_RX_Interrupt_Enable(int en)
 {
   if(en)
@@ -73,6 +97,12 @@ void Uart2_RX_Interrupt_Enable(int en)
   }
 }
 
+/**
+ * @brief USART1 하드웨어 초기화 (블루투스용)
+ * @details PA9(TX) 및 PA10(RX) 핀을 대체 기능(AF07)으로 설정하고,
+ * 지정된 보드레이트에 맞추어 통신 속도를 설정하여 USART1 장치를 활성화합니다.
+ * @param baud 통신 속도 (Baudrate)
+ */
 void Uart1_Init(int baud)
 {
   double div;
@@ -103,6 +133,12 @@ void Uart1_Init(int baud)
   USART1->CR3 = 0;
 }
 
+/**
+ * @brief USART1을 통한 1바이트 데이터 송신
+ * @details 송신 버퍼가 빌 때까지 대기 후 1바이트 문자를 전송합니다.
+ * 개행 문자 전송 시 캐리지 리턴을 자동으로 추가합니다.
+ * @param data 전송할 8비트 문자 데이터
+ */
 void Uart1_Send_Byte(char data)
 {
   if(data == '\n')
@@ -115,6 +151,12 @@ void Uart1_Send_Byte(char data)
   USART1->DR = data;
 }
 
+/**
+ * @brief USART1을 통한 널 종료 문자열 송신
+ * @details 문자열의 끝을 만날 때까지 내부적으로 Uart1_Send_Byte를 반복 호출하여
+ * 전체 문자열 패킷을 전송합니다.
+ * @param pt 전송할 문자열의 시작 주소 포인터
+ */
 void Uart1_Send_String(char *pt)
 {
   while(*pt != 0)
@@ -123,6 +165,11 @@ void Uart1_Send_String(char *pt)
   }
 }
 
+/**
+ * @brief USART1 수신 버퍼 비동기 확인 및 읽기
+ * @details 수신 레지스터에 대기 중인 데이터가 있는지 즉시 확인하고 반환합니다.
+ * @return char 수신된 문자 데이터 (데이터가 없을 경우 0)
+ */
 char Uart1_Get_Pressed(void)
 {
 	if(Macro_Check_Bit_Set(USART1->SR, 5))
@@ -136,12 +183,22 @@ char Uart1_Get_Pressed(void)
 	}
 }
 
+/**
+ * @brief USART1 1바이트 동기 수신 대기
+ * @details 새로운 데이터가 들어올 때까지 무한 대기한 후, 수신된 문자를 반환합니다.
+ * @return char 수신된 8비트 문자 데이터
+ */
 char Uart1_Get_Char(void)
 {
 	while(!Macro_Check_Bit_Set(USART1->SR, 5));
 	return (char)USART1->DR;
 }
 
+/**
+ * @brief USART1 수신 인터럽트 활성화 및 비활성화 제어
+ * @details USART1의 수신 인터럽트를 제어하고 NVIC 상에서 해당 IRQ(37번)를 설정합니다.
+ * @param en 1을 입력하면 인터럽트 활성화, 0을 입력하면 비활성화
+ */
 void Uart1_RX_Interrupt_Enable(int en)
 {
     if(en)

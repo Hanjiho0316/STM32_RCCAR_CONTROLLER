@@ -1,3 +1,10 @@
+/**
+ * @file exception.c
+ * @brief RC카 수신부 인터럽트 서비스 루틴(ISR) 및 예외 처리
+ * @details 외부 인터럽트 및 UART 통신(USART1, USART2) 수신 인터럽트를 처리하여
+ * 컨트롤러로부터 전달되는 제어 패킷을 파싱하고 메인 루프에 상태를 전달합니다.
+ */
+
 #include "device_driver.h"
 #include <stdio.h>
 
@@ -22,6 +29,11 @@ void EXTI15_10_IRQHandler(void)
 extern volatile int Uart_Data_In;
 extern volatile unsigned char Uart_Data;
 
+/**
+ * @brief USART2 수신 인터럽트 서비스 루틴 (디버깅용)
+ * @details PC와 연결된 USART2 통신 라인을 통해 데이터가 수신될 때 호출됩니다.
+ * 수신된 1바이트 데이터를 전역 변수에 저장하고 데이터 수신 플래그를 세팅합니다.
+ */
 void USART2_IRQHandler(void)
 {
 	// 수신된 데이터는 Uart_Data에 저장
@@ -39,6 +51,12 @@ volatile int RC_Packet_Ready = 0;
 volatile char RC_Joy_Val = '5';
 volatile char RC_Btn_Val = '0';
 
+/**
+ * @brief USART1 수신 인터럽트 서비스 루틴 (블루투스 제어 명령 수신)
+ * @details 컨트롤러로부터 전송되는 조이스틱 및 버튼 상태 패킷(예: S80\n)을 
+ * 상태 머신(State Machine) 방식으로 한 바이트씩 해석합니다. 
+ * 완전한 패킷이 수신되면 전역 변수에 값을 복사하고 패킷 준비 완료 플래그를 세팅합니다.
+ */
 void USART1_IRQHandler(void)
 {
     static int state = 0;
