@@ -78,6 +78,18 @@ unsigned char char_P[8] = {
     0xFE
 };
 
+// X
+unsigned char char_X[8] = {
+    0x81,   // 10000001
+    0x42,   // 01000010
+    0x24,   // 00100100
+    0x18,   // 00011000
+    0x18,   // 00011000
+    0x24,   // 00100100
+    0x42,   // 01000010
+    0x81    // 10000001
+};
+
 void Ready_State(void)
 {
     for (int i = 0; i < 5; i++) {
@@ -263,11 +275,10 @@ void Main(void)
                     }
                     
                     else if(result >= 3) {
-                    printf("Both FS Detected!\n");
-                    MAX7219_ShowPattern(0, char_F);
-                    MAX7219_ShowPattern(1, char_S);
-                    MAX7219_ShowPattern(2, char_F);
-                    MAX7219_ShowPattern(3, char_S);
+                        printf("Both FS Detected!\n");
+                        for(int i = 0; i < 4; i++) {
+                            MAX7219_ShowPattern(i, char_X);
+                            }
                     }
 
                     TIM2_Delay(3000); // 3초간 경고 유지
