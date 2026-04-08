@@ -14,6 +14,6 @@
 ## 아날로그 조이스틱 모듈
 - VCC : Nucleo 3.3V 핀
 - GND : Nucleo GND 핀
-- VRx : Nucleo PA0 핀 (A0)
+- VRx : Nucleo PA0 핀 (A0) 
 - VRy : Nucleo PA1 핀 (A1)
 - SW : Nucleo PB5 핀 (D4)
