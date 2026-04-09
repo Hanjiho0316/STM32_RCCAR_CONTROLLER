@@ -100,3 +100,10 @@ void MAX7219_Init_Dual(int player) {
         MAX7219_SendAll(player, row, 0x00); // Clear All
     }
 }
+
+void MAX7219_ClearAll(int player) {
+    for (int row = 1; row <= 8; row++) {
+        MAX7219_SendAll(player, row, 0x00);
+        Delay_uS(10); // 통신 사이의 아주 미세한 휴식 (안정성)
+    }
+}

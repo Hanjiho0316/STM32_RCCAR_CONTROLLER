@@ -15,7 +15,7 @@
 void GPIO_Init_Dual(void);
 void MAX7219_Init_Dual(int player);
 void MAX7219_SendOne(int player, int module, unsigned char addr, unsigned char data);
-
+void MAX7219_ClearAll(int player);
 // --- 시스템 초기화 ---
 void Sys_Init(int baud) 
 {
@@ -89,20 +89,54 @@ void Main(void) {
     MAX7219_Init_Dual(2);
 
     // 3. 모든 모듈(0~3)과 모든 행(1~8)을 0xFF(전체 점등)로 채우기
-    for (int m = 0; m < 4; m++) {
-        for (int row = 1; row <= 8; row++) {
-            MAX7219_SendOne(1, m, row, 0xFF); // 플레이어 1의 m번째 모듈
-            MAX7219_SendOne(2, m, row, 0xFF); // 플레이어 2의 m번째 모듈
+    
+    MAX7219_ClearAll(1);
+    MAX7219_ClearAll(2);
+    // 디버깅 메시지 출력 (UART 설정이 되어있을 경우)
+    printf("Dual MAX7219 All-ON Test Start!\n");
+    int winner = 0;
+    int threshold = 350;
+    while (1) {
+        float d1_f = Get_Distance_1P();
+        for(volatile int i=0; i<30000; i++); 
+        float d2_f = Get_Distance_2P();
+
+        // float을 정수로 변환 (예: 4.5cm -> 45)
+        int d1 = (int)(d1_f * 10.0f);
+        int d2 = (int)(d2_f * 10.0f);
+
+        printf("\r1P: %d | 2P: %d   ", d1, d2);
+
+        // 0.1cm ~ 5.0cm 사이를 정수 1 ~ 50으로 비교
+        if (d1 > 1 && d1 < threshold) {
+            winner = 1;
+            break;
+        }
+        if (d2 > 1 && d2 < threshold) {
+            winner = 2;
+            break;
         }
     }
 
-    // 디버깅 메시지 출력 (UART 설정이 되어있을 경우)
-    printf("Dual MAX7219 All-ON Test Start!\n");
+    // --- [결과 처리: 루프 밖에서 승리한 사람의 LED만 점등] ---
+    printf("\n\n*** RACE FINISHED! ***\n");
 
-    while (1) {
-        float d1 = Get_Distance_1P();
-        for(volatile int i=0; i<30000; i++); 
-        float d2 = Get_Distance_2P();
-        printf("\r1P: %5.1f cm | 2P: %5.1f cm", (double)d1, (double)d2);
+    if (winner == 1) {
+        printf("Winner: PLAYER 1\n");
+        // 1P 매트릭스 전체 점등 (8개 행 모두 0xFF)
+        for (int m = 0; m < 4; m++) {
+            for (int row = 1; row <= 8; row++) {
+                MAX7219_SendOne(1, m, row, 0xFF);
+            }
+        }
+    } 
+    else if (winner == 2) {
+        printf("Winner: PLAYER 2\n");
+        // 2P 매트릭스 전체 점등 (8개 행 모두 0xFF)
+        for (int m = 0; m < 4; m++) {
+            for (int row = 1; row <= 8; row++) {
+                MAX7219_SendOne(2, m, row, 0xFF);
+            }
+        }
     }
 }
