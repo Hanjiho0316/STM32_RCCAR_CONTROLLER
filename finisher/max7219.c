@@ -1,150 +1,102 @@
 #include "device_driver.h"
+#include "stm32f411xe.h" 
 
-#define RCC_AHB1ENR    (*(volatile unsigned int*)0x40023830)
+// --- [핀 조작 매크로] ---
+#define DIN_HIGH()   (GPIOA->ODR |=  (1 << 7))
+#define DIN_LOW()    (GPIOA->ODR &= ~(1 << 7))
+#define CLK_HIGH()   (GPIOA->ODR |=  (1 << 5))
+#define CLK_LOW()    (GPIOA->ODR &= ~(1 << 5))
 
-#define GPIOA_MODER    (*(volatile unsigned int*)0x40020000)
-#define GPIOA_OTYPER   (*(volatile unsigned int*)0x40020004)
-#define GPIOA_ODR      (*(volatile unsigned int*)0x40020014)
+#define CS1_HIGH()   (GPIOB->ODR |=  (1 << 6))
+#define CS1_LOW()    (GPIOB->ODR &= ~(1 << 6))
+#define CS2_HIGH()   (GPIOB->ODR |=  (1 << 12))
+#define CS2_LOW()    (GPIOB->ODR &= ~(1 << 12))
 
-#define GPIOB_MODER    (*(volatile unsigned int*)0x40020400)
-#define GPIOB_OTYPER   (*(volatile unsigned int*)0x40020404)
-#define GPIOB_ODR      (*(volatile unsigned int*)0x40020414)
-
-#define DIN_HIGH()   (GPIOA_ODR |=  (1 << 7))
-#define DIN_LOW()    (GPIOA_ODR &= ~(1 << 7))
-
-#define CLK_HIGH()   (GPIOA_ODR |=  (1 << 5))
-#define CLK_LOW()    (GPIOA_ODR &= ~(1 << 5))
-
-#define CS_HIGH()    (GPIOB_ODR |=  (1 << 6))
-#define CS_LOW()     (GPIOB_ODR &= ~(1 << 6))
-
-// DIN = PA7 (D11)
-// CLK = PA5 (D13)
-// CS  = PB6 (D10)
-
-void Delay(volatile unsigned int count)
-{
-    while(count--);
+// 미세 딜레이
+void Delay_uS(volatile unsigned int count) {
+    for(; count > 0; count--);
 }
 
-void GPIO_Init(void)
-{
+// GPIO 및 클럭 초기화 함수 (main.c에서 호출하는 이름과 일치시킴)
+void GPIO_Init_Dual(void) {
     // GPIOA, GPIOB 클럭 활성화
-    RCC_AHB1ENR |= (1 << 0);
-    RCC_AHB1ENR |= (1 << 1);
+    RCC->AHB1ENR |= (1 << 0) | (1 << 1);
 
-    // PA5, PA7 출력
-    GPIOA_MODER &= ~((3 << (5 * 2)) | (3 << (7 * 2)));
-    GPIOA_MODER |=  ((1 << (5 * 2)) | (1 << (7 * 2)));
+    // PA5(CLK), PA7(DIN) 출력 설정
+    GPIOA->MODER &= ~((3 << (5 * 2)) | (3 << (7 * 2)));
+    GPIOA->MODER |=  ((1 << (5 * 2)) | (1 << (7 * 2)));
 
-    // PB6 출력
-    GPIOB_MODER &= ~(3 << (6 * 2));
-    GPIOB_MODER |=  (1 << (6 * 2));
+    // PB6(CS1), PB12(CS2) 출력 설정
+    GPIOB->MODER &= ~((3 << (6 * 2)) | (3 << (12 * 2)));
+    GPIOB->MODER |=  ((1 << (6 * 2)) | (1 << (12 * 2)));
 
-    // Push-pull
-    GPIOA_OTYPER &= ~((1 << 5) | (1 << 7));
-    GPIOB_OTYPER &= ~(1 << 6);
-
-    DIN_LOW();
+    DIN_LOW(); 
     CLK_LOW();
-    CS_HIGH();
+    CS1_HIGH(); 
+    CS2_HIGH();
 }
 
-void SendByte(unsigned char data)
-{
-    for (int i = 0; i < 8; i++)
-    {
+// 기초 바이트 전송
+void SendByte(unsigned char data) {
+    for (int i = 0; i < 8; i++) {
         if (data & 0x80) DIN_HIGH();
         else             DIN_LOW();
 
+        Delay_uS(5);
         CLK_HIGH();
-        Delay(50);
+        Delay_uS(5);
         CLK_LOW();
-        Delay(50);
-
+        
         data <<= 1;
     }
 }
 
-// module:
-// 0 = 맨위
-// 1 = 위에서 두번째
-// 2 = 아래에서 두번째
-// 3 = 맨아래
-void MAX7219_SendOne(int module, unsigned char addr, unsigned char data)
-{
-    CS_LOW();
+// 특정 플레이어의 특정 모듈에 전송
+void MAX7219_SendOne(int player, int module, unsigned char addr, unsigned char data) {
+    if(player == 1)      CS1_LOW();
+    else if(player == 2) CS2_LOW();
+    else return;
 
-    for (int i = 0; i < 4; i++)
-    {
-        if (i == module)
-        {
+    for (int i = 0; i < 4; i++) {
+        if (i == module) {
             SendByte(addr);
             SendByte(data);
-        }
-        else
-        {
+        } else {
             SendByte(0x00);
             SendByte(0x00);
         }
     }
 
-    CS_HIGH();
-    Delay(500);
+    if(player == 1)      CS1_HIGH();
+    else if(player == 2) CS2_HIGH();
+    
+    Delay_uS(10);
 }
 
-void MAX7219_SendAll(unsigned char addr, unsigned char data)
-{
-    CS_LOW();
+// 모든 모듈에 전송
+void MAX7219_SendAll(int player, unsigned char addr, unsigned char data) {
+    if(player == 1)      CS1_LOW();
+    else if(player == 2) CS2_LOW();
+    else return;
 
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++) {
         SendByte(addr);
         SendByte(data);
     }
 
-    CS_HIGH();
-    Delay(500);
+    if(player == 1)      CS1_HIGH();
+    else if(player == 2) CS2_HIGH();
 }
 
-void MAX7219_Init(void)
-{
-    MAX7219_SendAll(0x0F, 0x00); // display test off
-    MAX7219_SendAll(0x0C, 0x01); // normal operation
-    MAX7219_SendAll(0x09, 0x00); // decode off
-    MAX7219_SendAll(0x0B, 0x07); // 8 rows
-    MAX7219_SendAll(0x0A, 0x08); // 밝기 중간
-}
-
-void MAX7219_ClearAll(void)
-{
-    for (int row = 1; row <= 8; row++)
-    {
-        MAX7219_SendAll(row, 0x00);
-    }
-}
-
-void MAX7219_FillModule(int module)
-{
-    for (int row = 1; row <= 8; row++)
-    {
-        MAX7219_SendOne(module, row, 0xFF);
-    }
-}
-
-void MAX7219_ShowPattern(int module, unsigned char *pattern)
-{
-    for (int row = 0; row < 8; row++)
-    {
-        MAX7219_SendOne(module, row + 1, pattern[row]);
-    }
-}
-
-void MAX7219_FillModulesRange(int from_module, int to_module)
-{
-    for (int module = from_module; module <= to_module; module++)
-    {
-        MAX7219_FillModule(module);
+// 초기화 함수 (main.c에서 호출하는 이름과 일치시킴)
+void MAX7219_Init_Dual(int player) {
+    MAX7219_SendAll(player, 0x0F, 0x00); // Display Test Off
+    MAX7219_SendAll(player, 0x0C, 0x01); // Normal Operation
+    MAX7219_SendAll(player, 0x09, 0x00); // No Decode
+    MAX7219_SendAll(player, 0x0B, 0x07); // 8 rows
+    MAX7219_SendAll(player, 0x0A, 0x01); // 밝기 최소 (안전용)
+    
+    for (int row = 1; row <= 8; row++) {
+        MAX7219_SendAll(player, row, 0x00); // Clear All
     }
 }

@@ -1,6 +1,4 @@
 #include "device_driver.h"
-#include "stm32f411xe.h" // CMSIS 표준 헤더 추가
-#include "macro.h"
 #include <stdio.h>
 
 // --- [매크로 기반 핀 제어] ---
@@ -12,15 +10,11 @@
 #define TRIG2_LOW()    Macro_Clear_Bit(GPIOA->ODR, 8)
 #define ECHO2_PIN      Macro_Check_Bit_Set(GPIOA->IDR, 9)
 
-// MAX7219 (DIN: PA7, CLK: PA5, CS1: PB6, CS2: PB12)
-#define DIN_HIGH()     Macro_Set_Bit(GPIOA->ODR, 7)
-#define DIN_LOW()      Macro_Clear_Bit(GPIOA->ODR, 7)
-#define CLK_HIGH()     Macro_Set_Bit(GPIOA->ODR, 5)
-#define CLK_LOW()      Macro_Clear_Bit(GPIOA->ODR, 5)
-#define CS1_HIGH()     Macro_Set_Bit(GPIOB->ODR, 6)
-#define CS1_LOW()      Macro_Clear_Bit(GPIOB->ODR, 6)
-#define CS2_HIGH()     Macro_Set_Bit(GPIOB->ODR, 12)
-#define CS2_LOW()      Macro_Clear_Bit(GPIOB->ODR, 12)
+
+// --- [함수 선언: max7219.c에 있는 함수들을 쓰겠다고 선언] ---
+void GPIO_Init_Dual(void);
+void MAX7219_Init_Dual(int player);
+void MAX7219_SendOne(int player, int module, unsigned char addr, unsigned char data);
 
 // --- 시스템 초기화 ---
 void Sys_Init(int baud) 
@@ -45,50 +39,6 @@ void Sys_Init(int baud)
     // 2P: PA8(Output), PA9(Input)
     Macro_Write_Block(GPIOA->MODER, 0x3, 0x1, 8*2);  // PA8 -> Output(01)
     Macro_Clear_Area(GPIOA->MODER, 0x3, 9*2);        // PA9 -> Input(00)
-}
-
-// --- [MAX7219 전송 함수 수정] ---
-void Matrix_SendByte(unsigned char data) {
-    for (int i = 0; i < 8; i++) {
-        // DIN (PA7) 제어: 다른 핀 영향 없이 7번 비트만 조작
-        if (data & 0x80) GPIOA->ODR |= (1 << 7); 
-        else             GPIOA->ODR &= ~(1 << 7);
-        
-        for(volatile int j=0; j<20; j++); // 안정화 딜레이
-
-        // CLK (PA5) 제어: 5번 비트만 조작
-        GPIOA->ODR |= (1 << 5);
-        for(volatile int j=0; j<20; j++);
-        GPIOA->ODR &= ~(1 << 5);
-        for(volatile int j=0; j<20; j++);
-
-        data <<= 1;
-    }
-}
-
-void Matrix_Write(int player, unsigned char addr, unsigned char data) {
-    // 1. CS 핀 활성화 (Low)
-    // CS1: PB6, CS2: PB12
-    if(player == 1)      GPIOB->ODR &= ~(1 << 6);
-    else if(player == 2) GPIOB->ODR &= ~(1 << 12);
-
-    // 2. 데이터 전송 (8x32 모듈 4개 칩 기준)
-    for(int i=0; i<4; i++) {
-        Matrix_SendByte(addr);
-        Matrix_SendByte(data);
-    }
-
-    // 3. CS 핀 비활성화 (High)
-    if(player == 1)      GPIOB->ODR |= (1 << 6);
-    else if(player == 2) GPIOB->ODR |= (1 << 12);
-}
-
-void Matrix_Init(int player) {
-    Matrix_Write(player, 0x0C, 0x01); // Normal Operation
-    Matrix_Write(player, 0x09, 0x00); // No Decode
-    Matrix_Write(player, 0x0B, 0x07); // Scan Limit (All digits)
-    Matrix_Write(player, 0x0A, 0x01); // Brightness
-    for(int i=1; i<=8; i++) Matrix_Write(player, i, 0x00); // Clear All
 }
 
 // --- [함수 1] 1번 센서용 측정 ---
@@ -129,27 +79,30 @@ float Get_Distance_2P(void) {
     return count * 0.017f;
 }
 
-// --- 메인 함수 ---
-void Main(void)
-{
-    Sys_Init(38400); 
-    // 매트릭스 초기화
-    Matrix_Init(1); 
-    Matrix_Init(2);
-    printf("--- Game Start! ---\n");
 
-    for(;;)
-    {
+void Main(void) {
+    // 1. 하드웨어 핀 및 클럭 초기화
+    GPIO_Init_Dual(); 
+    Sys_Init(38400);
+    // 2. 플레이어 1, 2 매트릭스 초기화 (잠자기 모드 해제 및 밝기 설정)
+    MAX7219_Init_Dual(1);
+    MAX7219_Init_Dual(2);
+
+    // 3. 모든 모듈(0~3)과 모든 행(1~8)을 0xFF(전체 점등)로 채우기
+    for (int m = 0; m < 4; m++) {
+        for (int row = 1; row <= 8; row++) {
+            MAX7219_SendOne(1, m, row, 0xFF); // 플레이어 1의 m번째 모듈
+            MAX7219_SendOne(2, m, row, 0xFF); // 플레이어 2의 m번째 모듈
+        }
+    }
+
+    // 디버깅 메시지 출력 (UART 설정이 되어있을 경우)
+    printf("Dual MAX7219 All-ON Test Start!\n");
+
+    while (1) {
         float d1 = Get_Distance_1P();
         for(volatile int i=0; i<30000; i++); 
         float d2 = Get_Distance_2P();
-
         printf("\r1P: %5.1f cm | 2P: %5.1f cm", (double)d1, (double)d2);
-
-        // 예시: 10cm 이내면 매트릭스에 불 켜기 (간단한 테스트용)
-        //if(d1 > 0 && d1 < 10.0f) Matrix_Write(1, 1, 0xFF); 
-        //else Matrix_Write(1, 1, 0x00);
-
-        for(volatile int i=0; i<500000; i++); 
     }
 }

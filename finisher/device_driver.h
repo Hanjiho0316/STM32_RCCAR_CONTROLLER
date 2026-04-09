@@ -81,18 +81,6 @@ extern void ADC1_Stop(void);
 extern int ADC1_Get_Status(void);
 extern int ADC1_Get_Data(void);
 
-// Max7219.c 
-
-extern void Delay(volatile unsigned int count);
-extern void GPIO_Init(void);
-extern void SendByte(unsigned char data);
-extern void MAX7219_SendOne(int module, unsigned char addr, unsigned char data);
-extern void MAX7219_SendAll(unsigned char addr, unsigned char data);
-extern void MAX7219_Init(void);
-extern void MAX7219_ClearAll(void);
-extern void MAX7219_FillModule(int module);
-extern void MAX7219_ShowPattern(int module, unsigned char *pattern);
-extern void MAX7219_FillModulesRange(int from_module, int to_module);
 
 // Buzzer.c
 
@@ -101,3 +89,14 @@ extern void Buzzer_Beep(int on_ms, int off_ms);
 extern void Buzzer_Count_Short(void);
 extern void Buzzer_Count_Long(void);
 extern void Buzzer_Start_Race(void);
+
+// --- [MAX7219 외부 함수 선언] ---
+// max7219.c에 정의된 이름과 동일하게 맞췄습니다.
+
+void Delay_uS(volatile unsigned int count);           // static이 아니므로 선언 가능
+void GPIO_Init_Dual(void);                            // 새로 만든 초기화 함수
+void MAX7219_Init_Dual(int player);                   // 이름 뒤에 _Dual 확인
+void MAX7219_SendOne(int player, int module, unsigned char addr, unsigned char data);
+void MAX7219_SendAll(int player, unsigned char addr, unsigned char data);
+void MAX7219_ShowPattern(int player, int module, unsigned char *pattern);
+void MAX7219_ClearAll(int player);
