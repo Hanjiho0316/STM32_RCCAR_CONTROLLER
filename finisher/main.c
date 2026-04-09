@@ -135,7 +135,7 @@ void Main(void) {
         Display_Pattern(1, 0, font_1);
         Display_Pattern(1, 1, font_W);
         Display_Pattern(1, 2, font_I);
-        Display_Pattern(1, 3, font_N); // N까지 넣으려면 모듈이 더 필요하므로 적절히 배분
+        Display_Pattern(1, 3, font_N); 
         
         Display_Pattern(2, 0, font_1);
         Display_Pattern(2, 1, font_W);
@@ -146,7 +146,7 @@ void Main(void) {
         Display_Pattern(1, 0, font_2);
         Display_Pattern(1, 1, font_W);
         Display_Pattern(1, 2, font_I);
-        Display_Pattern(1, 3, font_N); // N까지 넣으려면 모듈이 더 필요하므로 적절히 배분
+        Display_Pattern(1, 3, font_N); 
         
         Display_Pattern(2, 0, font_2);
         Display_Pattern(2, 1, font_W);
