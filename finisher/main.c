@@ -1,179 +1,155 @@
-
 #include "device_driver.h"
+#include "stm32f411xe.h" // CMSIS 표준 헤더 추가
+#include "macro.h"
 #include <stdio.h>
 
+// --- [매크로 기반 핀 제어] ---
+// 초음파 센서 (1P: PA10/PB5, 2P: PA8/PA9)
+#define TRIG1_HIGH()   Macro_Set_Bit(GPIOA->ODR, 10)
+#define TRIG1_LOW()    Macro_Clear_Bit(GPIOA->ODR, 10)
+#define ECHO1_PIN      Macro_Check_Bit_Set(GPIOB->IDR, 5)
+#define TRIG2_HIGH()   Macro_Set_Bit(GPIOA->ODR, 8)
+#define TRIG2_LOW()    Macro_Clear_Bit(GPIOA->ODR, 8)
+#define ECHO2_PIN      Macro_Check_Bit_Set(GPIOA->IDR, 9)
+
+// MAX7219 (DIN: PA7, CLK: PA5, CS1: PB6, CS2: PB12)
+#define DIN_HIGH()     Macro_Set_Bit(GPIOA->ODR, 7)
+#define DIN_LOW()      Macro_Clear_Bit(GPIOA->ODR, 7)
+#define CLK_HIGH()     Macro_Set_Bit(GPIOA->ODR, 5)
+#define CLK_LOW()      Macro_Clear_Bit(GPIOA->ODR, 5)
+#define CS1_HIGH()     Macro_Set_Bit(GPIOB->ODR, 6)
+#define CS1_LOW()      Macro_Clear_Bit(GPIOB->ODR, 6)
+#define CS2_HIGH()     Macro_Set_Bit(GPIOB->ODR, 12)
+#define CS2_LOW()      Macro_Clear_Bit(GPIOB->ODR, 12)
+
+// --- 시스템 초기화 ---
 void Sys_Init(int baud) 
 {
+    // FPU 및 기본 클럭 설정
     SCB->CPACR |= (0x3 << 10*2)|(0x3 << 11*2); 
     RCC->CR |= (1 << 0); 
     while(!(RCC->CR & (1 << 1)));
     RCC->CFGR = 0; 
 
+    // AHB1 클럭 활성화 (구조체 및 표준 비트 명칭 사용)
     RCC->AHB1ENR |= (RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN);
 
-    GPIOA->MODER &= ~((3 << (5*2)) | (3 << (7*2)));
-    GPIOA->MODER |=  ((1 << (5*2)) | (1 << (7*2)));
-
-    GPIOB->MODER &= ~((3 << (4*2)) | (3 << (6*2)) | (3 << (8*2)) | (3 << (12*2)));
-    GPIOB->MODER |=  ((1 << (4*2)) | (1 << (6*2)) | (1 << (8*2)) | (1 << (12*2)));
-
-    GPIOB->MODER &= ~((3 << (5*2)) | (3 << (9*2)));
-
     Uart2_Init(baud);      
-    Uart1_Init(baud);      
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    // GPIO 모드 설정 (GPIOA->MODER, GPIOB->MODER 직접 사용)
+    // 1P: PA10(Output), PB5(Input)
+    Macro_Write_Block(GPIOA->MODER, 0x3, 0x1, 10*2); // PA10 -> Output(01)
+    Macro_Clear_Area(GPIOB->MODER, 0x3, 5*2);        // PB5 -> Input(00)
+
+    // 2P: PA8(Output), PA9(Input)
+    Macro_Write_Block(GPIOA->MODER, 0x3, 0x1, 8*2);  // PA8 -> Output(01)
+    Macro_Clear_Area(GPIOA->MODER, 0x3, 9*2);        // PA9 -> Input(00)
 }
 
+// --- [MAX7219 전송 함수 수정] ---
+void Matrix_SendByte(unsigned char data) {
+    for (int i = 0; i < 8; i++) {
+        // DIN (PA7) 제어: 다른 핀 영향 없이 7번 비트만 조작
+        if (data & 0x80) GPIOA->ODR |= (1 << 7); 
+        else             GPIOA->ODR &= ~(1 << 7);
+        
+        for(volatile int j=0; j<20; j++); // 안정화 딜레이
+
+        // CLK (PA5) 제어: 5번 비트만 조작
+        GPIOA->ODR |= (1 << 5);
+        for(volatile int j=0; j<20; j++);
+        GPIOA->ODR &= ~(1 << 5);
+        for(volatile int j=0; j<20; j++);
+
+        data <<= 1;
+    }
+}
+
+void Matrix_Write(int player, unsigned char addr, unsigned char data) {
+    // 1. CS 핀 활성화 (Low)
+    // CS1: PB6, CS2: PB12
+    if(player == 1)      GPIOB->ODR &= ~(1 << 6);
+    else if(player == 2) GPIOB->ODR &= ~(1 << 12);
+
+    // 2. 데이터 전송 (8x32 모듈 4개 칩 기준)
+    for(int i=0; i<4; i++) {
+        Matrix_SendByte(addr);
+        Matrix_SendByte(data);
+    }
+
+    // 3. CS 핀 비활성화 (High)
+    if(player == 1)      GPIOB->ODR |= (1 << 6);
+    else if(player == 2) GPIOB->ODR |= (1 << 12);
+}
+
+void Matrix_Init(int player) {
+    Matrix_Write(player, 0x0C, 0x01); // Normal Operation
+    Matrix_Write(player, 0x09, 0x00); // No Decode
+    Matrix_Write(player, 0x0B, 0x07); // Scan Limit (All digits)
+    Matrix_Write(player, 0x0A, 0x01); // Brightness
+    for(int i=1; i<=8; i++) Matrix_Write(player, i, 0x00); // Clear All
+}
+
+// --- [함수 1] 1번 센서용 측정 ---
+float Get_Distance_1P(void) {
+    uint32_t count = 0, timeout = 0;
+
+    TRIG1_LOW(); for(volatile int i=0; i<10; i++);
+    TRIG1_HIGH(); for(volatile int i=0; i<50; i++);
+    TRIG1_LOW();
+
+    // 레지스터 주소 대신 GPIOB->IDR 사용
+    while(Macro_Check_Bit_Clear(GPIOB->IDR, 5)) { 
+        if(++timeout > 50000) return -1.0f;
+    }
+    while(Macro_Check_Bit_Set(GPIOB->IDR, 5)) {   
+        count++;
+        if(count > 100000) break;
+    }
+    return count * 0.017f;
+}
+
+// --- [함수 2] 2번 센서용 측정 ---
+float Get_Distance_2P(void) {
+    uint32_t count = 0, timeout = 0;
+
+    TRIG2_LOW(); for(volatile int i=0; i<10; i++);
+    TRIG2_HIGH(); for(volatile int i=0; i<50; i++);
+    TRIG2_LOW();
+
+    // 레지스터 주소 대신 GPIOA->IDR 사용
+    while(Macro_Check_Bit_Clear(GPIOA->IDR, 9)) { 
+        if(++timeout > 50000) return -1.0f;
+    }
+    while(Macro_Check_Bit_Set(GPIOA->IDR, 9)) {   
+        count++;
+        if(count > 100000) break;
+    }
+    return count * 0.017f;
+}
+
+// --- 메인 함수 ---
 void Main(void)
 {
     Sys_Init(38400); 
-    
-    // ✅ 이것만 먼저 테스트
-    Uart1_Printf("HELLO\n");
-    
+    // 매트릭스 초기화
+    Matrix_Init(1); 
+    Matrix_Init(2);
+    printf("--- Game Start! ---\n");
+
     for(;;)
     {
-        Uart1_Printf("1P test\n");
-        for(volatile int i=0; i<500000; i++);
+        float d1 = Get_Distance_1P();
+        for(volatile int i=0; i<30000; i++); 
+        float d2 = Get_Distance_2P();
+
+        printf("\r1P: %5.1f cm | 2P: %5.1f cm", (double)d1, (double)d2);
+
+        // 예시: 10cm 이내면 매트릭스에 불 켜기 (간단한 테스트용)
+        //if(d1 > 0 && d1 < 10.0f) Matrix_Write(1, 1, 0xFF); 
+        //else Matrix_Write(1, 1, 0x00);
+
+        for(volatile int i=0; i<500000; i++); 
     }
 }
-// #include "device_driver.h"
-// #include <stdio.h>
-
-// // --- 피니쉬 라인 전용 핀 정의 ---
-// #define DIN_HIGH()     (GPIOA->ODR |=  (1 << 7))
-// #define DIN_LOW()      (GPIOA->ODR &= ~(1 << 7))
-// #define CLK_HIGH()     (GPIOA->ODR |=  (1 << 5))
-// #define CLK_LOW()      (GPIOA->ODR &= ~(1 << 5))
-
-// #define TRIG1_HIGH()   (GPIOB->ODR |=  (1 << 8))
-// #define TRIG1_LOW()    (GPIOB->ODR &= ~(1 << 8))
-// #define TRIG2_HIGH()   (GPIOB->ODR |=  (1 << 4))
-// #define TRIG2_LOW()    (GPIOB->ODR &= ~(1 << 4))
-
-// // --- 전역 패턴 데이터 ---
-// unsigned char pat_W[8] = {0x7F, 0x02, 0x0C, 0x02, 0x7F, 0x00, 0x00, 0x00};
-// unsigned char pat_I[8] = {0x00, 0x41, 0x7F, 0x41, 0x00, 0x00, 0x00, 0x00};
-// unsigned char pat_N[8] = {0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, 0x00, 0x00};
-
-// // --- 함수 선언 ---
-// void SendByte_Finish(unsigned char data);
-// void MAX7219_SendOne_Finish(int player, int module, unsigned char addr, unsigned char data);
-// void MAX7219_Init_All(void);
-// void MAX7219_Clear_Finish(int player);
-// float Get_Distance_Finish(int player);
-// void Display_Winner_Finish(int winner);
-
-// // ---------------------------------------------------------
-// // 1. 하드웨어 전송 및 제어 함수
-// // ---------------------------------------------------------
-// void SendByte_Finish(unsigned char data) {
-//     for (int i = 0; i < 8; i++) {
-//         if (data & 0x80) DIN_HIGH(); else DIN_LOW();
-//         CLK_HIGH(); for(volatile int j=0; j<5; j++);
-//         CLK_LOW();  for(volatile int j=0; j<5; j++);
-//         data <<= 1;
-//     }
-// }
-
-// void MAX7219_SendOne_Finish(int player, int module, unsigned char addr, unsigned char data) {
-//     if(player == 1) GPIOB->ODR &= ~(1 << 6);  // CS1 LOW (PB6)
-//     else           GPIOB->ODR &= ~(1 << 12); // CS2 LOW (PB12)
-
-//     for (int i = 0; i < 4; i++) {
-//         if (i == module) { SendByte_Finish(addr); SendByte_Finish(data); }
-//         else { SendByte_Finish(0x00); SendByte_Finish(0x00); }
-//     }
-
-//     if(player == 1) GPIOB->ODR |= (1 << 6);   // CS1 HIGH
-//     else           GPIOB->ODR |= (1 << 12);  // CS2 HIGH
-// }
-
-// void MAX7219_Init_All(void) {
-//     for(int p=1; p<=2; p++) {
-//         MAX7219_SendOne_Finish(p, 0, 0x0C, 0x01);
-//         MAX7219_SendOne_Finish(p, 0, 0x09, 0x00);
-//         MAX7219_SendOne_Finish(p, 0, 0x0B, 0x07);
-//         MAX7219_SendOne_Finish(p, 0, 0x0A, 0x01); 
-//         MAX7219_Clear_Finish(p);
-//     }
-// }
-
-// void MAX7219_Clear_Finish(int player) {
-//     for (int i = 1; i <= 8; i++) MAX7219_SendOne_Finish(player, i, i, 0x00);
-// }
-
-// // ---------------------------------------------------------
-// // 2. 센서 및 판정 함수
-// // ---------------------------------------------------------
-// float Get_Distance_Finish(int player) {
-//     int echo_pin = (player == 1) ? 9 : 5;
-//     uint32_t count = 0;
-//     uint32_t timeout = 0;
-
-//     if(player == 1) { TRIG1_LOW(); for(volatile int i=0; i<10; i++); TRIG1_HIGH(); for(volatile int i=0; i<50; i++); TRIG1_LOW(); }
-//     else           { TRIG2_LOW(); for(volatile int i=0; i<10; i++); TRIG2_HIGH(); for(volatile int i=0; i<50; i++); TRIG2_LOW(); }
-
-//     while(!(GPIOB->IDR & (1 << echo_pin))) {
-//         if(++timeout > 100000) return 999.0f; // Timeout 증가
-//     }
-//     while(GPIOB->IDR & (1 << echo_pin)) {
-//         count++;
-//         if(count > 100000) break; 
-//     }
-//     return count * 0.017f;
-// }
-
-// void Display_Winner_Finish(int winner) {
-//     MAX7219_Clear_Finish(1); MAX7219_Clear_Finish(2);
-//     MAX7219_SendOne_Finish(winner, 0, 1, pat_W[0]);
-//     MAX7219_SendOne_Finish(winner, 1, 1, pat_I[0]);
-//     MAX7219_SendOne_Finish(winner, 2, 1, pat_N[0]);
-//     printf("\n\n🏆 PLAYER %d WIN! 🏆\n", winner);
-// }
-
-// // ---------------------------------------------------------
-// // 3. 컨트롤러와 동일한 규격의 초기화 루틴
-// // ---------------------------------------------------------
-// void Sys_Init(int baud) 
-// {
-//     SCB->CPACR |= (0x3 << 10*2)|(0x3 << 11*2); 
-//     RCC->CR |= (1 << 0); 
-//     while(!(RCC->CR & (1 << 1)));
-//     RCC->CFGR = 0; 
-
-//     RCC->AHB1ENR |= (RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN);
-
-//     // ✅ GPIO 핀 설정을 UART Init보다 먼저!
-//     GPIOA->MODER &= ~((3 << (5*2)) | (3 << (7*2)));
-//     GPIOA->MODER |=  ((1 << (5*2)) | (1 << (7*2)));
-
-//     GPIOB->MODER &= ~((3 << (4*2)) | (3 << (6*2)) | (3 << (8*2)) | (3 << (12*2)));
-//     GPIOB->MODER |=  ((1 << (4*2)) | (1 << (6*2)) | (1 << (8*2)) | (1 << (12*2)));
-
-//     GPIOB->MODER &= ~((3 << (5*2)) | (3 << (9*2)));
-
-//     // ✅ UART는 GPIO 설정 다음에
-//     Uart2_Init(baud);      
-//     Uart1_Init(baud);      
-    
-//     setvbuf(stdout, NULL, _IONBF, 0);
-// }
-// void Main(void)
-// {
-//     Sys_Init(38400); 
-    
-//     printf("\n--- Finish Line Monitor Start ---\n");  // 이걸로 변경
-//     MAX7219_Init_All();
-
-//     float d1, d2;
-//     float threshold = 12.0f; 
-
-//     for(;;)
-//     {
-//         d1 = Get_Distance_Finish(1);
-//         for(volatile int i=0; i<10000; i++); 
-//         d2 = Get_Distance_Finish(2);
-
-//         printf("\r1P: %4.1f cm | 2P: %4.1f cm    ", (double)d1, (double)d2);
-//     }
-// }
