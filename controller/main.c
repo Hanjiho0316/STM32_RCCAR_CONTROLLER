@@ -3,6 +3,7 @@
  * @brief RC카 제어용 메인 컨트롤러 애플리케이션
  * @details 조이스틱의 입력을 받아 방향을 계산하고, 블루투스 연결 상태에 따라
  * LCD에 애니메이션 및 직관적인 방향 문자열을 출력하며 제어 패킷을 전송합니다.
+ * 통신 오류 방지를 위해 패킷의 끝에 XOR 체크섬을 추가하여 전송합니다.
  */
 
 #include "device_driver.h"
@@ -98,8 +99,15 @@ void Main(void)
                 
                 if(dir != prev_dir || sw != prev_sw || heartbeat_cnt >= 10)
                 {
-                    // 통신 프로토콜 전송 (숫자 유지)
-                    sprintf(msg, "S%d%d\n", dir, sw);
+                    // 방향과 버튼 값을 문자로 변환
+                    char dir_char = dir + '0';
+                    char sw_char = sw + '0';
+                    
+                    // 패킷 무결성 검증을 위한 XOR 체크섬 생성 ('S' ^ 방향문자 ^ 버튼문자)
+                    char checksum = 'S' ^ dir_char ^ sw_char;
+                    
+                    // 체크섬을 포함한 통신 프로토콜 패킷 생성 및 전송
+                    sprintf(msg, "S%c%c%c\n", dir_char, sw_char, checksum);
                     Uart1_Send_String(msg);
                     
                     if(dir != prev_dir || sw != prev_sw) 

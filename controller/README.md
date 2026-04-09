@@ -8,7 +8,7 @@
 
 ## I2C 1602 LCD 모듈 (I2C1)
 - VCC   : Nucleo 5V 핀
-- GND   : Nucleo GND 핀
+- GND   : Nucleo GND 핀 
 - SDA   : Nucleo PB9 핀 (D14)
 - SCL   : Nucleo PB8 핀 (D15)
 
