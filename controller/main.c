@@ -1,20 +1,19 @@
 /**
  * @file main.c
  * @brief RC카 제어용 메인 컨트롤러 애플리케이션
- * @details 조이스틱의 입력을 받아 방향을 계산하고, 상태 변화 또는 하트비트 주기에 따라
- * HC-05 블루투스 모듈(UART1)을 통해 제어 패킷을 전송하며, LCD에 현재 상태를 실시간으로 출력합니다.
+ * @details 조이스틱의 입력을 받아 방향을 계산하고, 블루투스 연결 상태에 따라
+ * LCD에 애니메이션 및 직관적인 방향 문자열을 출력하며 제어 패킷을 전송합니다.
+ * 통신 오류 방지를 위해 패킷의 끝에 XOR 체크섬을 추가하여 전송합니다.
  */
 
 #include "device_driver.h"
 #include <stdio.h>
 
 int Get_Joystick_Direction(int x, int y);
+const char* Get_Direction_String(int dir);
 
 /**
  * @brief 시스템 클럭 및 하드웨어 주변장치 초기화
- * @details FPU 및 16MHz 클럭을 설정하고 UART, I2C, LCD, 조이스틱 등
- * 프로젝트 구동에 필요한 모든 하드웨어 드라이버를 초기화합니다.
- * @param baud UART 통신에 사용할 보드레이트 (예: 38400)
  */
 void Sys_Init(int baud) 
 {
@@ -25,72 +24,116 @@ void Sys_Init(int baud)
     RCC->CFGR = 0; 
 
     // 하드웨어 초기화
-    Uart2_Init(baud);      // 디버그용
-    Uart1_Init(baud);      // HC-05 블루투스용
-    I2C1_Init();           // LCD 통신용
-    LCD_Init();            // LCD 모듈 초기화
-    Joystick_Init();       // 조이스틱(ADC 및 PB5) 초기화
-    
+    Uart2_Init(baud);      
+    Uart1_Init(baud);      
+    I2C1_Init();           
+    LCD_Init();            
+    Joystick_Init();           
     setvbuf(stdout, NULL, _IONBF, 0);
 }
 
 /**
  * @brief 메인 프로그램 루프
- * @details 20ms 주기로 조이스틱 데이터를 샘플링하여 제어 방향을 계산합니다.
- * 통신 버퍼 포화를 방지하기 위해 조이스틱의 상태(방향 또는 버튼)가 변했을 때만 통신을 수행하며,
- * 상태가 변하지 않더라도 수신 측의 안전(페일세이프) 기능을 위해 200ms(10주기)마다 하트비트 패킷을 전송합니다.
  */
 void Main(void)
 {
     Sys_Init(38400); 
     
+    // 1. 실행 초기 화면 출력
     LCD_Send_Cmd(0x01); // 화면 초기화
     TIM2_Delay(2);
     LCD_Print_String("RC Controller");
+    LCD_Send_Cmd(0xC0); // 2번째 줄 이동
+    LCD_Print_String("System Ready!   ");
+    TIM2_Delay(1500); // 사용자가 인지할 수 있도록 1.5초 대기
     
-    // 20ms 주기 타이머 시작 (ADC 읽기 주기 유지)
     SysTick_Run(20); 
     
     int x, y, sw, dir;
     int prev_dir = -1; 
     int prev_sw = -1;  
-    int heartbeat_cnt = 0; // 주기적 전송을 위한 카운터 변수 추가
+    int heartbeat_cnt = 0; 
+    int ani_cnt = 0; // 연결 대기 애니메이션 카운터
     char msg[16];
     
     for(;;)
     {
+        // PA8 핀을 통해 블루투스 페어링 상태 읽기 (1: 연결됨, 0: 연결 안됨)
+        int is_connected = Macro_Check_Bit_Set(GPIOA->IDR, 8);
+
         if(SysTick_Check_Timeout())
         {
-            x = Joystick_Get_X();
-            y = Joystick_Get_Y();
-            sw = Joystick_Get_SW();
-            
-            dir = Get_Joystick_Direction(x, y);
-            
-            // 상태가 변했거나, 상태가 변하지 않았어도 10주기(200ms)가 경과했다면 전송
-            if(dir != prev_dir || sw != prev_sw || heartbeat_cnt >= 10)
+            if (!is_connected)
             {
-                sprintf(msg, "S%d%d\n", dir, sw);
-                Uart1_Send_String(msg);
-                
-                // LCD 업데이트는 상태가 실제로 변했을 때만 수행하여 불필요한 깜빡임 방지
-                if(dir != prev_dir || sw != prev_sw) 
+                // 2. 블루투스가 연결되지 않았을 때 (페어링 대기 애니메이션)
+                // 20ms 주기이므로 25번 반복 시 500ms 경과
+                if (ani_cnt % 25 == 0)
                 {
+                    int dot_state = (ani_cnt / 25) % 4;
+                    
+                    LCD_Send_Cmd(0x01); 
+                    TIM2_Delay(2);
+                    LCD_Print_String("Pairing Mode");
                     LCD_Send_Cmd(0xC0); 
-                    sprintf(msg, "DIR:%d BTN:%d    ", dir, sw);
-                    LCD_Print_String(msg);
+
+                    // 16칸 고정 폭으로 이전 잔상을 덮어씌움
+                    if (dot_state == 0)      LCD_Print_String("Connecting      ");
+                    else if (dot_state == 1) LCD_Print_String("Connecting.     ");
+                    else if (dot_state == 2) LCD_Print_String("Connecting..    ");
+                    else if (dot_state == 3) LCD_Print_String("Connecting...   ");
                 }
+                ani_cnt++;
                 
-                prev_dir = dir;
-                prev_sw = sw;
-                heartbeat_cnt = 0; // 데이터 전송 후 카운터 리셋
+                // 재연결 시 즉각적인 화면 갱신을 위해 상태 변수 초기화
+                prev_dir = -1;
+                prev_sw = -1;
             }
             else
             {
-                heartbeat_cnt++; // 상태가 변하지 않았다면 카운터 증가
+                // 3. 블루투스가 연결되었을 때 (조종 모드)
+                x = Joystick_Get_X();
+                y = Joystick_Get_Y();
+                sw = Joystick_Get_SW();
+                
+                dir = Get_Joystick_Direction(x, y);
+                
+                if(dir != prev_dir || sw != prev_sw || heartbeat_cnt >= 10)
+                {
+                    // 방향과 버튼 값을 문자로 변환
+                    char dir_char = dir + '0';
+                    char sw_char = sw + '0';
+                    
+                    // 패킷 무결성 검증을 위한 XOR 체크섬 생성 ('S' ^ 방향문자 ^ 버튼문자)
+                    char checksum = 'S' ^ dir_char ^ sw_char;
+                    
+                    // 체크섬을 포함한 통신 프로토콜 패킷 생성 및 전송
+                    sprintf(msg, "S%c%c%c\n", dir_char, sw_char, checksum);
+                    Uart1_Send_String(msg);
+                    
+                    if(dir != prev_dir || sw != prev_sw) 
+                    {
+                        // 조종 화면 UI 출력
+                        LCD_Send_Cmd(0x01);
+                        TIM2_Delay(2);
+                        LCD_Print_String("RC Controller");
+                        LCD_Send_Cmd(0xC0); 
+                        
+                        // 방향 숫자를 문자열로 변환하여 출력 (잔상 방지를 위해 16칸 고정 반환됨)
+                        LCD_Print_String((char*)Get_Direction_String(dir));
+                    }
+                    
+                    prev_dir = dir;
+                    prev_sw = sw;
+                    heartbeat_cnt = 0; 
+                }
+                else
+                {
+                    heartbeat_cnt++; 
+                }
             }
         }
 
+        // 수신 데이터 디버깅 전달
         if(Macro_Check_Bit_Set(USART1->SR, 5)) 
         {
             char rx_data = (char)USART1->DR;
@@ -100,45 +143,55 @@ void Main(void)
 }
 
 /**
+ * @brief 조이스틱 방향 숫자를 문자열로 변환하는 헬퍼 함수
+ * @details LCD 출력 시 잔상이 남지 않도록 모든 문자열의 길이를 공백을 포함해 16칸으로 맞춥니다.
+ */
+const char* Get_Direction_String(int dir) 
+{
+    switch(dir) 
+    {
+        case 8: return "Forward         ";
+        case 2: return "Backward        ";
+        case 4: return "Turn Left       ";
+        case 6: return "Turn Right      ";
+        case 7: return "Forward Right    ";
+        case 9: return "Forward Left   ";
+        case 1: return "Backward Right   ";
+        case 3: return "Backward Left  ";
+        case 5: default: return "Stop            ";
+    }
+}
+
+/**
  * @brief 조이스틱 아날로그 값을 1~9 방향 데이터로 매핑
- * @details X축과 Y축의 원시 ADC 값을 평가하여 데드존(1000~3000)을 적용하고,
- * 하드웨어 장착 방향을 고려하여 논리적인 90도 회전을 수행한 뒤
- * 숫자 키패드 배열(1~9, 5는 중립)에 맞춘 방향 코드를 반환합니다.
- * @param x 조이스틱 X축 원시 ADC 값 (0 ~ 4095)
- * @param y 조이스틱 Y축 원시 ADC 값 (0 ~ 4095)
- * @return int 1부터 9까지의 방향 상태 코드
  */
 int Get_Joystick_Direction(int x, int y) 
 {
     int raw_dx = 0; 
     int raw_dy = 0; 
 
-    // X축 원시 데이    터 분석
     if (x > 3000) raw_dx = 1;
     else if (x < 1000) raw_dx = -1;
 
-    // Y축 원시 데이터 분석
     if (y > 3000) raw_dy = 1;
     else if (y < 1000) raw_dy = -1;
 
-    // 방향 맞추기
     int dx = raw_dy;
     int dy = -raw_dx;
 
-    // 숫자 키패드 방식 매핑 (789 / 456 / 123)
-    if (dy == 1) { // 전진 라인
+    if (dy == 1) { 
         if (dx == -1) return 7;
         if (dx == 1) return 9;
         return 8;
     } 
-    else if (dy == -1) { // 후진 라인
+    else if (dy == -1) { 
         if (dx == -1) return 1;
         if (dx == 1) return 3;
         return 2;
     } 
-    else { // 중립 라인
-        if (dx == -1) return 4;
-        if (dx == 1) return 6;
+    else { 
+        if (dx == -1) return 6;
+        if (dx == 1) return 4;
         return 5;
     }
 }

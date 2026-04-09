@@ -1,8 +1,8 @@
 # 하드웨어 배선 가이드
 ## HC-05 블루투스 통신 모듈
 ## HC-05 블루투스 모듈 (USART1)
-- VCC : Nucleo 5V 핀 (Morpho 18)
-- GND : Nucleo GND 핀 (Morpho 20)
+- VCC : Nucleo 5V 핀 (CN7 Morpho 18)
+- GND : Nucleo GND 핀 (CN7 Morpho 20)
 - TXD : Nucleo PA10 핀 (D2)
 - RXD : Nucleo PA9 핀 (D8)
 
