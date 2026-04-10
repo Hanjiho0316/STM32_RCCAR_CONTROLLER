@@ -24,6 +24,8 @@ void GPIO_Init_Dual(void);
 void MAX7219_Init_Dual(int player);
 void MAX7219_SendOne(int player, int module, unsigned char addr, unsigned char data);
 void MAX7219_ClearAll(int player);
+
+
 // --- 시스템 초기화 ---
 void Sys_Init(int baud) 
 {
