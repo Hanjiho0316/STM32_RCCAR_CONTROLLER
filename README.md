@@ -1,5 +1,5 @@
 # STM32_RCCAR_CONTROLLER
-[단체사진](./assets/imgs/group.png)
+![단체사진](./assets/imgs/group.png)
 
 ## 프로젝트 개요
 본 프로젝트는 대한상공회의소 서울기술교육센터 AI 융합 로봇 SW 개발자 2기 과정 중 CORTEX-M4 기반 임베디드 시스템 제어 수업의 최종 프로젝트로 진행되었습니다. 
