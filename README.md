@@ -29,7 +29,7 @@ STM32F411xE MCU가 탑재된 Nucleo-64 보드를 기반으로 하며, 모터 제
 ![전체 시스템 구성2](./assets/imgs/overall2.jpg)
 
 ### 레이싱 주행 시연
-<video src="./assets/videos/racing.mp4" controls="controls" width="100%"></video>
+https://github.com/user-attachments/assets/7a31ca1b-3404-4e2c-89a5-3513c029b462
 
 ### 컨트롤러
 ![컨트롤러1](./assets/imgs/controller1.jpg)
