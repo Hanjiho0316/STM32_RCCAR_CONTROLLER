@@ -1,5 +1,7 @@
 # STM32_RCCAR_CONTROLLER
-![단체사진](./assets/imgs/group.png)
+<p align="center">
+  <img src="./assets/imgs/group.png" width="80%" alt="단체사진">
+</p>
 
 ## 프로젝트 개요
 본 프로젝트는 대한상공회의소 서울기술교육센터 AI 융합 로봇 SW 개발자 2기 과정 중 CORTEX-M4 기반 임베디드 시스템 제어 수업의 최종 프로젝트로 진행되었습니다. 
@@ -25,33 +27,45 @@ STM32F411xE MCU가 탑재된 Nucleo-64 보드를 기반으로 하며, 모터 제
 ## 시연 모습
 
 ### 전체 시스템 및 완성 모습
-![전체 시스템 구성1](./assets/imgs/overall1.jpg)
-![전체 시스템 구성2](./assets/imgs/overall2.jpg)
+<p align="center">
+  <img src="./assets/imgs/overall1.jpg" width="48%" alt="전체 시스템 구성1">
+  <img src="./assets/imgs/overall2.jpg" width="48%" alt="전체 시스템 구성2">
+</p>
 
 ### 레이싱 주행 시연
 https://github.com/user-attachments/assets/7a31ca1b-3404-4e2c-89a5-3513c029b462
 
 ### 컨트롤러
-![컨트롤러1](./assets/imgs/controller1.jpg)
-![컨트롤러2](./assets/imgs/controller2.jpg)
-![컨트롤러2](./assets/imgs/controller3.jpg)
+<p align="center">
+  <img src="./assets/imgs/controller1.jpg" width="32%" alt="컨트롤러1">
+  <img src="./assets/imgs/controller2.jpg" width="32%" alt="컨트롤러2">
+  <img src="./assets/imgs/controller3.jpg" width="32%" alt="컨트롤러3">
+</p>
 
 ### RC카
-![RC카1](./assets/imgs/car_circuit.jpg)
-![RC카2](./assets/imgs/car_prototype.jpg)
-![RC카3](./assets/imgs/car_cover.jpg)
-![RC카4](./assets/imgs/car_complete.jpg)
+<p align="center">
+  <img src="./assets/imgs/car_circuit.jpg" width="24%" alt="RC카1">
+  <img src="./assets/imgs/car_prototype.jpg" width="24%" alt="RC카2">
+  <img src="./assets/imgs/car_cover.jpg" width="24%" alt="RC카3">
+  <img src="./assets/imgs/car_complete.jpg" width="24%" alt="RC카4">
+</p>
 
 ### 스타터
-![스타터](./assets/imgs/starter.jpg)
+<p align="center">
+  <img src="./assets/imgs/starter.jpg" width="60%" alt="스타터">
+</p>
 
 ### 부정 출발 감지
-![부정출발 시연 1](./assets/gifs/false_start_1.gif)
-![부정출발 시연 2](./assets/gifs/false_start_2.gif)
-![부정출발 시연 3](./assets/gifs/false_start_same.gif)
+<p align="center">
+  <img src="./assets/gifs/false_start_1.gif" width="32%" alt="부정출발 시연 1">
+  <img src="./assets/gifs/false_start_2.gif" width="32%" alt="부정출발 시연 2">
+  <img src="./assets/gifs/false_start_same.gif" width="32%" alt="부정출발 시연 3">
+</p>
 
 ### 피니셔
-![피니셔](./assets/imgs/finisher.jpg)
+<p align="center">
+  <img src="./assets/imgs/finisher.jpg" width="60%" alt="피니셔">
+</p>
 
 ## 개발 환경 및 기술
 
@@ -140,10 +154,10 @@ STM32_RCCAR_CONTROLLER/
 │  └─ README.md            # 스타터 모듈 하드웨어 배선 가이드
 │
 └─ finisher/               # 결승선 통과 감지 모듈 소스 코드
-   ├─ main.c               # 초음파 센서 기반 통과 감지 메인 로직
-   ├─ max7219.c            # 최종 승자 도트 매트릭스 출력
-   ├─ buzzer.c             # 통과 감지 알림용 부저 제어
-   └─ README.md            # 피니셔 모듈 하드웨어 배선 가이드
+  ├─ main.c               # 초음파 센서 기반 통과 감지 메인 로직
+  ├─ max7219.c            # 최종 승자 도트 매트릭스 출력
+  ├─ buzzer.c             # 통과 감지 알림용 부저 제어
+  └─ README.md            # 피니셔 모듈 하드웨어 배선 가이드
 ```
 
 ## 팀원 소개 및 역할 분담
@@ -159,13 +173,13 @@ STM32_RCCAR_CONTROLLER/
 </div>
 
 - 최민석
-  - 역할: 컨트롤러 펌웨어 제작, RC카 펌웨어 제작, 레포지토리 관리
+  - 역할: 컨트롤러 펌웨어 및 RC카 펌웨어 개발, 레포지토리 관리
 
 - 김동석
-  - 역할: 하드웨어 제작, 커버 디자인, 스타트 펌웨어 개선, 자료 관리
+  - 역할: 하드웨어 제작, 커버 디자인, 스타터 펌웨어 개선, 자료 관리
 
 - 한지호
-  - 역할: 회로도 제작, 기본 통신 개발, 피니쉬 라인 펌웨어 개발, 프로젝트 관리
+  - 역할: 회로도 제작, 기본 통신 개발, 피니셔 펌웨어 개발, 프로젝트 관리
 
 - 공성우
-  - 역할: 도트 매트릭스 펌웨어 제작, 스타트 라인 펌웨어 개발, RC카 제작
+  - 역할: 아이디어 제공, 도트 매트릭스 드라이버 설계, 스타터 펌웨어 개발, RC카 제작
